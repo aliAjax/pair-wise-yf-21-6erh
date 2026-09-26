@@ -1,126 +1,80 @@
 import "./styles.css";
-
-const project = {
-  "sourceNo": 2,
-  "id": "hxyfront-62009",
-  "port": 62009,
-  "title": "地毯修复纹样档案",
-  "domain": "手工地毯修复",
-  "prompt": "做一个给手工地毯修复工作室使用的纹样与修复档案前端项目，可以记录地毯产地、年代、结密度、材质、染色类型、破损区域、补线颜色和修复工序。页面需要有纹样局部标记图、修复前后记录、材料色卡、工序进度和按产地筛选的档案列表。",
-  "palette": [
-    "#7c2d12",
-    "#b45309",
-    "#0f766e"
-  ],
-  "metrics": [
-    "待修复",
-    "纹样档案",
-    "色卡数量",
-    "完工率"
-  ],
-  "filters": [
-    "波斯",
-    "安纳托利亚",
-    "高加索",
-    "藏毯"
-  ],
-  "fields": [
-    "地毯产地",
-    "年代",
-    "结密度",
-    "材质",
-    "染色类型",
-    "破损区域"
-  ],
-  "records": [
-    [
-      "CAR-092",
-      "波斯",
-      "羊毛，约1960s",
-      "边缘磨损待补线"
-    ],
-    [
-      "CAR-117",
-      "安纳托利亚",
-      "植物染，结密度42",
-      "中心纹样缺口"
-    ],
-    [
-      "CAR-138",
-      "藏毯",
-      "局部褪色",
-      "需匹配靛蓝色卡"
-    ]
-  ]
-};
+import ArchiveSidebar from "./components/ArchiveSidebar";
+import CarpetDetail from "./components/CarpetDetail";
+import { useArchive } from "./state/useArchive";
+import { STAGES } from "./types";
 
 function App() {
+  const archive = useArchive();
+  const { selected } = archive;
+
+  const pendingRepair = archive.carpets.filter(
+    (c) => STAGES.indexOf(c.stage) < STAGES.indexOf("补线") && !c.threadId && c.stage !== "验收",
+  ).length;
+  const inRepair = archive.carpets.filter((c) => c.stage === "补线").length;
+  const finished = archive.carpets.filter((c) => c.stage === "验收").length;
+  const finishRate = archive.carpets.length
+    ? Math.round((finished / archive.carpets.length) * 100)
+    : 0;
+
+  const metrics = [
+    { label: "在档地毯", value: archive.carpets.length },
+    { label: "待匹配色卡", value: pendingRepair },
+    { label: "补线中", value: inRepair },
+    { label: "完工率", value: `${finishRate}%` },
+  ];
+
   return (
     <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">手工地毯修复工作室 · 定损补线工作台</p>
+          <h1>地毯修复纹样档案</h1>
+        </div>
+        <p className="topbar-note">
+          收毯建档 → 纹样定损 → 色卡匹配 → 工序流转，所有改动保存在本机浏览器，重开页面不丢失。
+        </p>
+      </header>
 
       <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[28, 6, 14, 91][index] ?? 10}</strong>
+        {metrics.map((metric) => (
+          <article key={metric.label}>
+            <small>{metric.label}</small>
+            <strong>{metric.value}</strong>
           </article>
         ))}
       </section>
 
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}分类</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
+      <div className="layout">
+        <ArchiveSidebar
+          carpets={archive.carpets}
+          selectedId={archive.selectedId}
+          onSelect={archive.setSelectedId}
+          onCreate={archive.addCarpet}
+        />
 
-        <section className="panel form-panel">
-          <div className="heading">
+        {selected ? (
+          <CarpetDetail
+            carpet={selected}
+            onAddMark={(x, y, type, note) => archive.addMark(selected.id, x, y, type, note)}
+            onRemoveMark={(markId) => archive.removeMark(selected.id, markId)}
+            onMatchThread={(threadId, name) => archive.matchThread(selected.id, threadId, name)}
+            onUnmatchThread={() => archive.unmatchThread(selected.id)}
+            onAdvance={() => archive.advanceStage(selected.id)}
+            onRevert={() => archive.revertStage(selected.id)}
+          />
+        ) : (
+          <section className="panel empty-state">
             <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
+              <h2>从左侧选择一条地毯档案</h2>
+              <p>
+                可按产地（波斯 / 安纳托利亚 / 高加索 / 藏毯）筛选；新收的毯子点左上角「收毯录入」建档。
+                选中后即可在纹样图上点出破损、匹配补线色卡，并推进 待检 → 清洗 → 补线 → 验收 工序。
+              </p>
             </div>
-            <button className="primary">保存记录</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
-          <div>
-            <p>近期记录</p>
-            <h2>工作台摘要</h2>
-          </div>
-          <button>导出CSV</button>
-        </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+          </section>
+        )}
+      </div>
     </main>
   );
 }
